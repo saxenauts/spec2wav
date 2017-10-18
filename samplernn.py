@@ -1,9 +1,9 @@
 import torch
 from torch.nn import functional as F
 from torch.nn import init
-from torchqrnn import QRNN
+#from torchqrnn import QRNN
 import numpy as np
-import utils
+#import utils
 
 class SampleRNN(torch.nn.Module):
     '''
@@ -14,10 +14,30 @@ class SampleRNN(torch.nn.Module):
 
     '''
 
-    def __init__(self, top_frame_size, mid_frame_size, top_frame_input_dimensions, \
+    def __init__(self, input_dim, q_levels, n_rnn, ratio_spec2wav, \
                     output_dimensions):
         super().__init__()
 
+    self.input_dim = input_dim
+    self.q_levels = q_levels
+
+    self.top_frame_input = TopFrameInput(ratio_spec2wav)
+
+    self.tiers_rnns = torch.nn.ModuleList([
+        TierRNN(
+            4, 2, self.input_dim
+        ),                                      #TierRNN listed according to tier index
+        TierRNN(
+            16, 2, self.input_dim
+        )
+    ])
+
+    self.mlp = MLP(4, self.input_dim, self.q_levels)
+
+    def forward(self, audio, spectrogram):
+        #out = self.top_frame_input(audio, spectrogram)
+        #return 
+        pass
 
 
 class TopFrameInput(torch.nn.Module):
@@ -38,7 +58,7 @@ class TopFrameInput(torch.nn.Module):
 
         #TODO: Hidden Layer Initialization
 
-        self.hidden0_1 = torch.zeros(, dim)
+        #self.hidden0_1 = torch.zeros(, dim)
         #self.hidden0_1 = torch.zeros(, dim)
         #self.hidden0_1 = torch.zeros(, dim)
         #self.hidden0_1 = torch.zeros(, dim)
@@ -80,7 +100,6 @@ class TopFrameInput(torch.nn.Module):
         audio_input = self.conv1d(audio)
         return audio_input + upsampled_spectro
 
-
 class TierRNN(torch.nn.Module):
     '''
     Generates RNNs, can be used to generate RNN for different tiers.
@@ -88,7 +107,7 @@ class TierRNN(torch.nn.Module):
 
     Input: prev rnn cell's hidden state, input samples, upsampled conditioning
     '''
-    def __init__(self, frame_size, n_rnn, input_dim, seq_len):
+    def __init__(self, frame_size, n_rnn, input_dim):
         super.__init__()
 
         self.frame_size = frame_size
@@ -119,5 +138,87 @@ class TierRNN(torch.nn.Module):
         #TODO: Check this, and apply Initialization
 
     def forward(self, prev_samples, upper_tier_conditioning, hidden):
+        '''
+        Assumed dimensions:
+                prev_samples: input_dim x seq_len
+                upper_tier_conditioning: input_dim x seq_len
+                hidden: input_dim x seq_len
+        '''
+        tier_input = clock_input(
+                    prev_samples.permute(0, 2, 1)
+                    ).permute(0, 2, 1)
 
-        self.tier_input =
+        if upper_tier_conditioning is not None:
+            tier_input += upper_tier_conditioning
+
+        if hidden is None:
+            pass
+            #TODO: Initialization of hidden layer
+            #      Depends on the number of layer
+
+        output, hidden = self.rnn(tier_input, hidden)
+
+        output = self.tier_output_upsample(
+            output.permute(0, 2, 1)
+        ).permute(0, 2, 1)
+
+        return (output, hidden)
+
+class MLP(torch.nn.Module):
+
+    def __init__(self, frame_size, input_dim, q_levels):
+        super().__init__()
+
+        self.q_levels = q_levels
+
+        self.embedding = torch.nn.Embedding(
+                    self.q_levels,
+                    self.q_levels
+                    )
+
+        self.input = torch.nn.Conv1d(
+            in_channels = q_levels,
+            out_channels = input_dim,
+            kernel_size = frame_size,
+            bias = False
+        )
+        #TODO: Weight Initialization
+
+        self.hidden = torch.nn.Conv1d(
+            in_channels = input_dim,
+            out_channels = input_dim,
+            kernel_size = 1
+        )
+        #TODO: Weight Initialization
+
+        self.output = torch.nn.Conv1d(
+            in_channels = input_dim,
+            out_channels = q_levels,
+            kernel_size = 1
+        )
+        #TODO: Weight Initialization
+
+    def forward(self, prev_samples, upper_tier_conditioning):
+
+        #TODO: Batch size
+        #TODO: What is prev_samples? dim?
+
+        #TODO
+        '''
+        WHY SO MANY PERMUTES? WHAT IS BEING FED IN, AND WHAT IS COMING OUT?
+        '''
+        prev_samples = self.embedding(prev_samples).\
+                        view(batch_size, -1, self.q_levels)
+
+        prev_samples = prev_samples.permute(0, 2, 1)
+        upper_tier_conditioning = upper_tier_conditioning.permute(0, 2, 1)
+
+        x = F.relu(self.input(prev_samples) + upper_tier_conditioning)
+        x = F.relu(self.hidden(x))
+        x = self.output(x).permute(0, 2, 1).contiguous()
+
+        # Output  batch_size x sequence_length x q_levels
+
+        #TODO: Check for a different return based on personal code
+        return F.log_softmax(x.view(-1, self.q_levels))\
+                            .view(batch_size, -1, self.q_levels)
