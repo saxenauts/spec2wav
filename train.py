@@ -9,6 +9,8 @@ import nn
 
 #TODO : Model Building
 
+#TODO: Model checkpoints Saving and Loading
+
 optimzer = optimizer = gradient_clipping(torch.optim.Adam(model.parameters()))
 def loss_function(batch_output, batch_inputs):
     #TODO Does this system work?

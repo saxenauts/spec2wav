@@ -235,3 +235,40 @@ class MLP(torch.nn.Module):
         #TODO: Check for a different return based on personal code
         return F.log_softmax(x.view(-1, self.q_levels))\
                             .view(batch_size, -1, self.q_levels)
+
+class Generator():
+
+    def __init__(self, model, cuda=False):
+        self.cuda = cuda
+
+    def __call__(self, n_seqs, seq_len, spectrogram):
+        '''
+        -Takes in an spectrogram
+        -Generates audio of Arbitrary Length
+        '''
+        runner.reset_hidden_states #TODO reset hidden states
+
+        bottom_frame_size = model.tiers_rnns[0].frame_size
+        sequences = torch.LongTensor(n_seqs, model.hindsight + seq_len)\
+                        .fill_(zeros) #TODO: Fill with Q_Levels zeros
+
+        upper_tier_conditioning = model.conv1d(spectrogram) #TODO
+
+        #TODO Implement model hindsight
+        for i in range(model.hindsight, model.hindsight + seq_len):
+            for rnn in reversed(model.tiers_rnns):
+                if i % rnn.frame_size != 0:
+                    continue
+                prev_samples = sequences[:, i - rnn.frame_size: i]
+                #TODO
+                upper_tier_conditioning = \
+                    run_rnn(rnn, prev_samples, upper_tier_conditioning)
+
+            prev_samples = sequences[:, i - bottom_frame_size : i]
+            sample_dist = self.model.mlp(
+                prev_samples, upper_tier_conditioning
+            )
+
+            sequences = [:, i] = sample_dist.multinomial(1).squeeze(1) #TODO
+
+        return sequences[:, model.hindsight : ]
