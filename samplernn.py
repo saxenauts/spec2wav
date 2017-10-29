@@ -20,6 +20,7 @@ class SampleRNN(torch.nn.Module):
 
     self.input_dim = input_dim
     self.q_levels = q_levels
+    self.top_frame_size = 16
 
     self.top_frame_input = TopFrameInput(ratio_spec2wav)
 
@@ -34,10 +35,22 @@ class SampleRNN(torch.nn.Module):
 
     self.mlp = MLP(4, self.input_dim, self.q_levels)
 
-    def forward(self, audio, spectrogram):
-        #out = self.top_frame_input(audio, spectrogram)
-        #return 
-        pass
+    def forward(self, audio_clip, spectrogram_clip):
+        '''
+        Input audio_clip has the size of bptt length + top_frame_size
+        '''
+        conditioning = self.top_frame_input(audio_clip, spectrogram_clip)
+        input_seq = audio_clip
+        for rnn in reversed(self.tiers_rnns):
+            from_index = top_frame_size - rnn.frame_size
+            to_index = -rnn.frame_size + 1
+
+            prev_samples = input_seq[:, from_index:to_index]
+            conditioning = run_rnn(rnn, conditioning, prev_samples) #TODO run_rnn function
+
+        mlp_input = input_seq[:, top_frame_size - bottom_frame_size] #TODO
+
+        return self.mlp(mlp_input)
 
 
 class TopFrameInput(torch.nn.Module):
