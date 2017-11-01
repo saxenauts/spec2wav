@@ -1,4 +1,5 @@
 import utils
+import spectro
 
 import torch
 from torch.utils.data import (
@@ -6,10 +7,12 @@ from torch.utils.data import (
 )
 
 from librosa.core import load
-from natsort import natsorted
+#from natsort import natsorted
+from tqdm import *
 
 from os import listdir
 from os.path import join
+
 
 
 class FolderDataset(Dataset):
@@ -73,3 +76,21 @@ class DataLoader(DataLoaderBase):
 
     def __len__(self):
         raise NotImplementedError()
+
+def main(wav_path, spec_path):
+    file_names = [f for f in listdir(wav_path)]
+
+    for file_name in tqdm(file_names):
+        wav = spectro.load_wav(join(wav_path, file_name))
+        mel_spectrogram = spectro.mel_spectrogram(wav).astype(np.float32)
+
+        #TODO: Saving in time major format?
+        np.save(os.path.join(spec_path, file_name), mel_spectrogram.T, allow_pickle=False)
+    print ("Done")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path')
+    parser.add_argument('--spectro_save_path')
+    args = parser.parse_args()
+    main(args.data_path, spectro_save_path)
