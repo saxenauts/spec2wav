@@ -17,7 +17,7 @@ from os.path import join
 
 class FolderDataset(Dataset):
 
-    def __init__(self, path_spec, path_wav, hindsight, q_levels, ratio_min=0, ratio_max=1):
+    def __init__(self, path_wav, path_spec, hindsight, q_levels, ratio_min=0, ratio_max=1):
         super().__init__()
         self.overlap_len = overlap_len
         self.q_levels = q_levels
