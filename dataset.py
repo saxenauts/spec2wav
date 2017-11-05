@@ -17,26 +17,37 @@ from os.path import join
 
 class FolderDataset(Dataset):
 
-    def __init__(self, path, overlap_len, q_levels, ratio_min=0, ratio_max=1):
+    def __init__(self, path_spec, path_wav, hindsight, q_levels, ratio_min=0, ratio_max=1):
         super().__init__()
         self.overlap_len = overlap_len
         self.q_levels = q_levels
-        file_names = natsorted(
-            [join(path, file_name) for file_name in listdir(path)]
+        file_names_spec = natsorted(
+            [join(path_spec, file_name) for file_name in listdir(path_spec)]
         )
-        self.file_names = file_names[
-            int(ratio_min * len(file_names)) : int(ratio_max * len(file_names))
+        file_names_wav = natsorted(
+            [join(path_wav, file_name) for file_name in listdir(path_spec)]
+        )
+        self.file_names_spec = file_names_spec[
+            int(ratio_min * len(file_names_spec)) : int(ratio_max * len(file_names_spec))
+        ]
+        self.file_names_wav = file_names_wav[
+            int(ratio_min * len(file_names_wav)) : int(ratio_max * len(file_names_wav))
         ]
 
     def __getitem__(self, index):
-        (seq, _) = load(self.file_names[index], sr=None, mono=True)
-        return torch.cat([
-            torch.LongTensor(self.overlap_len) \
-                 .fill_(utils.q_zero(self.q_levels)),
+        (seq, _) = load(self.file_names_wav[index], sr=None, mono=True)
+        wav_tensor = torch.cat([
+            torch.LongTensor(self.hindsight) \
+                 .fill_(utils.q_zero(self.q_levels)),   #TODO linear_quantize change
             utils.linear_quantize(
                 torch.from_numpy(seq), self.q_levels
             )
         ])
+
+        spec_tensor = torch.from_numpy(np.load(self.file_names_spec[index], allow_pickle=False))
+        #TODO add hindsight zeros to the spec_tensor
+
+        return wav_tensor, spec_tensor
 
     def __len__(self):
         return len(self.file_names)
@@ -51,26 +62,28 @@ class DataLoader(DataLoaderBase):
     '''
 
 
-    def __init__(self, dataset, batch_size, seq_len, overlap_len,
+    def __init__(self, dataset, batch_size, seq_len, hindsight, wav_spec_ratio,
                  *args, **kwargs):
         super().__init__(dataset, batch_size, *args, **kwargs)
         self.seq_len = seq_len
-        self.overlap_len = overlap_len
+        self.hindsight = hindsight
 
     def __iter__(self):
-        for batch in super().__iter__():
-            (batch_size, n_samples) = batch.size()
+        for batch_wav, batch_spec in super().__iter__():
+            (batch_size, n_samples) = batch_wav.size()
 
-            reset = True
+            reset = True #TODO: Functionality of reset?
 
-            for seq_begin in range(self.overlap_len, n_samples, self.seq_len):
-                from_index = seq_begin - self.overlap_len
+            for seq_begin in range(self.hindsight, n_samples, self.seq_len):
+                from_index = seq_begin - self.hindsight
                 to_index = seq_begin + self.seq_len
-                sequences = batch[:, from_index : to_index]
+                sequences = batch_wav[:, from_index : to_index]
                 input_sequences = sequences[:, : -1]
-                target_sequences = sequences[:, self.overlap_len :]
+                target_sequences = sequences[:, self.hindsight :]
 
-                yield (input_sequences, reset, target_sequences)
+                input_specs = batch_spec[:, from_index*wav_spec_ratio: to_index*wav_spec_ratio]
+
+                yield (input_sequences, reset, target_sequences, input_specs)
 
                 reset = False
 
