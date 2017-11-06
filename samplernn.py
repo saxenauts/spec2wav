@@ -14,7 +14,7 @@ class SampleRNN(torch.nn.Module):
 
     '''
 
-    def __init__(self, input_dim, q_levels, n_rnn, ratio_spec2wav, \
+    def __init__(self, input_dim, q_levels, ratio_spec2wav, \
                     output_dimensions):
         super().__init__()
 
