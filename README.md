@@ -10,3 +10,6 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 - [ ] Saving Model/Loading Model
 - [ ] Validation (Based on better Score)
 - [ ] Generation audio every epoch
+- [ ] Model Input Output Tuning
+- [ ] Model Audio Lengths Equal
+- [ ] HyperParameters
