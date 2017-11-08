@@ -81,7 +81,7 @@ class DataLoader(DataLoaderBase):
                 input_sequences = sequences[:, : -1]
                 target_sequences = sequences[:, self.hindsight :]
 
-                input_specs = batch_spec[:, from_index*wav_spec_ratio: to_index*wav_spec_ratio]
+                input_specs = batch_spec[:, from_index//wav_spec_ratio: to_index//wav_spec_ratio]
 
                 yield (input_sequences, reset, target_sequences, input_specs)
 

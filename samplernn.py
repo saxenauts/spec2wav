@@ -52,6 +52,10 @@ class SampleRNN(torch.nn.Module):
 
         return self.mlp(mlp_input)
 
+    @property
+    def hindsight(self):
+        return self.tiers_rnns[-1].frame_size
+
 
 class TopFrameInput(torch.nn.Module):
     '''
@@ -238,10 +242,10 @@ class MLP(torch.nn.Module):
 
 class Generator():
 
-    def __init__(self, model, cuda=False):
-        self.cuda = cuda
+    def __init__(self, params):
+        self.params = params
 
-    def __call__(self, n_seqs, seq_len, spectrogram):
+    def __call__(self, model, spectrogram):
         '''
         -Takes in an spectrogram
         -Generates audio of Arbitrary Length
@@ -249,12 +253,14 @@ class Generator():
         runner.reset_hidden_states #TODO reset hidden states
 
         bottom_frame_size = model.tiers_rnns[0].frame_size
-        sequences = torch.LongTensor(n_seqs, model.hindsight + seq_len)\
+        seq_len = int(spectrogram.shape[0]*params['ratio_spec2wav'])
+        sequences = torch.LongTensor(1, model.hindsight + seq_len)\
                         .fill_(zeros) #TODO: Fill with Q_Levels zeros
 
-        upper_tier_conditioning = model.conv1d(spectrogram) #TODO
+        #TODO Wrap all tensors as Variables when feeding to a model.
 
-        #TODO Implement model hindsight
+        upper_tier_conditioning = model.top_frame_input(sequences, spectrogram)
+
         for i in range(model.hindsight, model.hindsight + seq_len):
             for rnn in reversed(model.tiers_rnns):
                 if i % rnn.frame_size != 0:

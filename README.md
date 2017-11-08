@@ -6,11 +6,12 @@ The skeleton is the same as SampleRNN, with modifications in architecture to sui
 Will modify the architecture to make it extremely flexible for multiple purposes. Speech, Music, Any Other Audios, etc.
 
 ## TODO
-- [ ] Generator File/ Module
-- [ ] Saving Model/Loading Model
-- [ ] Validation (Based on better Score)
-- [ ] Generation audio every epoch
+- [x] Generator File/ Module
+- [x] Saving Model/Loading Model
+- [ ] Train/Val loss visualisation
+- [x] Generation audio every epoch
 - [ ] Model Input Output Tuning
-- [ ] Model Audio Lengths Equal
 - [ ] HyperParameters
 - [ ] CUDA
+- [ ] Pytorch QRNN
+- [ ] Handle Variable Length Input

@@ -1,0 +1,3 @@
+librosa
+matplotlib
+qrnn-salesforce

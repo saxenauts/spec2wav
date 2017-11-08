@@ -1,15 +1,18 @@
 import torch
-from samplernn import SampleRNN
+from samplernn import SampleRNN, Generator
 import nn
 
 
 #TODO : Imports
 from dataset import FolderDataset, DataLoader
 
+#TODO: Define Parameters
+
 #TODO : Data Loading
 def make_data_loader(params, path_wav, path_spec):
     def data_loader(split_from, split_to, eval):
-        dataset = FolderDataset(path_wav, path_spec, params['hindsight'], params['q_levels']
+        dataset = FolderDataset(path_wav, path_spec, params['hindsight'],
+                                    params['q_levels'],
                                     split_from, split_to
                                     )
         return DataLoader(
@@ -22,8 +25,17 @@ def make_data_loader(params, path_wav, path_spec):
     )
     return data_loader
 
-#TODO: Results path
-#TODO: Model checkpoints Saving and Loading
+
+def spec2wav(generator, model, spectrogram, save_path):
+
+    audio_samples = generator(model, spectrogram)
+    wav = utils.mu_law_decoding(audio_samples)
+    librosa.output.write_wav(save_path, wav, 16000)
+
+#TODO: Saved model Loading
+
+
+
 
 def loss_function(batch_output, batch_inputs):
     #TODO Does this system work?
@@ -45,13 +57,23 @@ def train(model, data, optimizer, loss_func):
 
         optimizer.step()
 
-def run_training(epochs):
+def run_training(model, data, optimizer, loss_function, epochs, generator):
     for epoch in range(epochs):
-        train(model, data, optimizer, loss_function)
+        train(model, data(0, val_split), optimizer, loss_function)
 
-def checkpoints(model):
-    torch.save(model.state_dict(), save_path)
-    model.load_state_dict(torch.load(save_path))
+        if epoch%10 == 0:
+            save_checkpoints(model, optim, epoch, params['save_dir'])
+            #TODO: Setup a random spectrogram and save_path
+            spec2wav(generator, model, spectrogram, save_path)
+
+
+
+def save_checkpoints(model, optim, epoch, save_dir):
+    save_path = os.path.join(save_dir, 'spec2wav_epoch_{}.ckpt'.format(epoch))
+    torch.save({'epoch': epoch,
+                'state_dict': model.state_dict(),
+                'optimizer': optim},
+                 save_path)
 
 
 def main():
@@ -66,8 +88,9 @@ def main():
     #scheduler = ReduceLROnPlateau(optimizer, 'min') TODO: What learning rate schedule?
 
     data_loader  = make_data_loader(params, path_wav, path_spec)
+    generator = Generator(params)
 
     test_split = 1 - params['test_frac']
     val_split = test_split - params['val_frac']
-
-    run_training(params['epochs'])
+    run_training(model, data_loader, optimizer, loss_function,
+                    params['epochs'], generator)
