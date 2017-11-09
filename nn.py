@@ -41,7 +41,23 @@ class LearnedUpsampling1d(nn.Module):
         )
         return self.conv_t(input) + bias
 
+def lecun_uniform(tensor):
+    fan_in = nn.init._calculate_correct_fan(tensor, 'fan_in')
+    nn.init.uniform(tensor, -math.sqrt(3 / fan_in), math.sqrt(3 / fan_in))
 
+def concat_init(tensor, inits):
+    try:
+        tensor = tensor.data
+    except AttributeError:
+        pass
+
+    (length, fan_out) = tensor.size()
+    fan_in = length // len(inits)
+
+    chunk = tensor.new(fan_in, fan_out)
+    for (i, init) in enumerate(inits):
+        init(chunk)
+        tensor[i * fan_in : (i + 1) * fan_in, :] = chunk
 
 def sequence_nll_loss_bits(input, target):
     (_, _, n_classes) = input.size()

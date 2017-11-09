@@ -53,7 +53,7 @@ class SampleRNN(torch.nn.Module):
 
         bottom_frame_size = self.tiers_rnns[0].frame_size
         mlp_input = input_seq[:, self.hindsight - bottom_frame_size : ]
-        
+
         return self.mlp(mlp_input, upper_tier_conditioning)
 
 
@@ -89,49 +89,54 @@ class TopFrameInput(torch.nn.Module):
         super().__init__()
 
         self.ratio = ratio_top_input
+        spec_input = #TODO
 
-        #TODO: Hidden Layer Initialization
+        self.qrnn1 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn1_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn2 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn2_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
 
-        #self.hidden0_1 = torch.zeros(, dim)
-        #self.hidden0_1 = torch.zeros(, dim)
-        #self.hidden0_1 = torch.zeros(, dim)
-        #self.hidden0_1 = torch.zeros(, dim)
-
-        self.qrnn1 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0.4)
-        self.qrnn1_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0.4)
-        self.qrnn2 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0.4)
-        self.qrnn2_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0.4)
-
-        #TODO: Weight Initializations for QRNN
+        init.xavier_uniform(self.qrnn1.weight)
+        init.xavier_uniform(self.qrnn1_b.weight)
+        init.xavier_uniform(self.qrnn2.weight)
+        init.xavier_uniform(self.qrnn2_b.weight)
 
         self.conv1d = torch.nn.Conv1d(
                         q_levels,           #TODO: hidden, input dims?
                         q_levels,
-                        kernel_size = 2,
+                        kernel_size = 1,
                         stride = 1)
-        #TODO: Weight Initializations
+        nn.lecun_uniform(self.conv1d.weight)
+        init.constant(self.conv1d.bias, 0)
+
+        self.conv2d = torch.nn.Conv1d(
+                        q_levels,           #TODO: hidden, input dims?
+                        q_levels,
+                        kernel_size = 1,
+                        stride = 1)
+        nn.lecun_uniform(self.conv2d.weight)
+        init.constant(self.conv2d.bias, 0)
 
     def forward(self, audio, spectrogram):
 
         #TODO: cuda
-        spectro_qrnn, hidden_1 = self.qrnn1(spectrogram, hidden0_1)
-        spectro_qrnn_b, hidden_1_b = self.qrnn1_b(utils.reverse(spectro_qrnn_1_b, 2), \
-                                            hidden0_1_b)
+        #TODO: Hidden
+        self.qrnn_hidden = [torch.zeros(, dim) for i in range(4)]
+
+        spectro_qrnn, hidden[0] = self.qrnn1(spectrogram, hidden[0])
+        spectro_qrnn_b, hidden[1] = self.qrnn1_b(utils.reverse(spectro_qrnn_1_b, 2), \
+                                            hidden[1])
         stack_1 = torch.stack([spectro_qrnn_1, spectro_qrnn_1_b])
 
-        spectro_qrnn, hidden_2 = self.qrnn2(stack_1, hidden0_2)
-        spectro_qrnn_b, hidden_2_b = self.qrnn2_b(utils.reverse(stack_1, 2),\
-                                            hidden0_2_b)
-
+        spectro_qrnn, hidden[2] = self.qrnn2(stack_1, hidden[2])
+        spectro_qrnn_b, hidden[3] = self.qrnn2_b(utils.reverse(stack_1, 2),\
+                                            hidden[3])
+        #TODO: Interleaving
         stack_2 = torch.stack([spectro_qrnn, spectro_qrnn_b])
 
-        #TODO: Interleaving
-        #TODO: spectrogram convolution
-
         upsampled_spectro = stack_2.repeat(1, 1, ratio)
-
-        #TODO: TODO TODO Verify this convolution method
-        audio_input = self.conv1d(audio)
+        upsampled_spectro = self.conv1d(upsampled_spectro)
+        audio_input = self.conv2d(audio)
         return audio_input + upsampled_spectro
 
 class TierRNN(torch.nn.Module):
@@ -141,11 +146,11 @@ class TierRNN(torch.nn.Module):
 
     Input: prev rnn cell's hidden state, input samples, upsampled conditioning
     '''
-    def __init__(self, frame_size, n_rnn, input_dim):
+    def __init__(self, frame_size, input_dim):
         super.__init__()
 
         self.frame_size = frame_size
-        self.n_rnn = n_rnn
+        self.n_rnn = 1
 
         self.clock_input = torch.nn.Conv1d(
                     in_channels = frame_size,
@@ -153,7 +158,8 @@ class TierRNN(torch.nn.Module):
                     kernel_size = 1
         )
 
-        #TODO: Initialize weight for clock_input
+        init.kaiming_uniform(self.clock_input.weight)
+        init.constant(self.clock_input.bias, 0)
 
         self.rnn = torch.nn.GRU(
             input_size = input_dim,
@@ -162,14 +168,28 @@ class TierRNN(torch.nn.Module):
             batch_first = True       #Input, Output provided as (Batch x Sequence x Feature)
         )
 
-        #TODO : Initialize the RNNs
+        for i in range(n_rnn): #TODO: Why?
+            nn.concat_init(
+                getattr(self.rnn, 'weight_ih_l{}'.format(i)),
+                [nn.lecun_uniform, nn.lecun_uniform, nn.lecun_uniform]
+            )
+            init.constant(getattr(self.rnn, 'bias_ih_l{}'.format(i)), 0)
+
+            nn.concat_init(
+                getattr(self.rnn, 'weight_hh_l{}'.format(i)),
+                [nn.lecun_uniform, nn.lecun_uniform, init.orthogonal]
+            )
+            init.constant(getattr(self.rnn, 'bias_hh_l{}'.format(i)), 0)
 
         self.tier_output_upsample = utils.LearnedUpsampling1d(
                 in_channels = input_dim,
                 out_channels = input_dim,
                 kernel_size = frame_size
         )
-        #TODO: Check this, and apply Initialization
+        init.uniform(
+            self.tier_output_upsample.conv_t.weight, -np.sqrt(6 / dim), np.sqrt(6 / dim)
+        )
+        init.constant(self.tier_output_upsample.bias, 0)
 
     def forward(self, prev_samples, upper_tier_conditioning, hidden):
         '''
@@ -185,10 +205,11 @@ class TierRNN(torch.nn.Module):
         if upper_tier_conditioning is not None:
             tier_input += upper_tier_conditioning
 
+        reset = hidden is None
+
         if hidden is None:
-            pass
-            #TODO: Initialization of hidden layer
-            #      Depends on the number of layer
+            hidden = zeros(, dim)
+            #TODO: dimensions
 
         output, hidden = self.rnn(tier_input, hidden)
 
@@ -216,21 +237,23 @@ class MLP(torch.nn.Module):
             kernel_size = frame_size,
             bias = False
         )
-        #TODO: Weight Initialization
+        init.kaiming_uniform(self.input.weight)
 
         self.hidden = torch.nn.Conv1d(
             in_channels = input_dim,
             out_channels = input_dim,
             kernel_size = 1
         )
-        #TODO: Weight Initialization
+        init.kaiming_uniform(self.hidden.weight)
+        init.constant(self.hidden.bias, 0)
 
         self.output = torch.nn.Conv1d(
             in_channels = input_dim,
             out_channels = q_levels,
             kernel_size = 1
         )
-        #TODO: Weight Initialization
+        nn.lecun_uniform(self.output.weight)
+        init.constant(self.output.bias, 0)
 
     def forward(self, prev_samples, upper_tier_conditioning):
 
@@ -267,7 +290,7 @@ class Generator():
         -Takes in an spectrogram
         -Generates audio of Arbitrary Length
         '''
-        runner.reset_hidden_states #TODO reset hidden states
+        model.reset_hidden_states()
 
         bottom_frame_size = model.tiers_rnns[0].frame_size
         seq_len = int(spectrogram.shape[0]*params['ratio_spec2wav'])
