@@ -33,28 +33,45 @@ class SampleRNN(torch.nn.Module):
         )
     ])
 
+    self.reset_hidden_states()
     self.mlp = MLP(4, self.input_dim, self.q_levels)
 
-    def forward(self, audio_clip, spectrogram_clip):
+    def forward(self, audio_clip, spectrogram_clip, reset):
         '''
         Input audio_clip has the size of bptt length + top_frame_size
         '''
+        if reset: #TODO: Fix reset
+            self.reset_hidden_states()
+
         conditioning = self.top_frame_input(audio_clip, spectrogram_clip)
         input_seq = audio_clip
         for rnn in reversed(self.tiers_rnns):
             from_index = top_frame_size - rnn.frame_size
             to_index = -rnn.frame_size + 1
-
             prev_samples = input_seq[:, from_index:to_index]
-            conditioning = run_rnn(rnn, conditioning, prev_samples) #TODO run_rnn function
+            conditioning = self.run_rnn(rnn, prev_samples, conditioning)
 
-        mlp_input = input_seq[:, top_frame_size - bottom_frame_size] #TODO
+        bottom_frame_size = self.tiers_rnns[0].frame_size
+        mlp_input = input_seq[:, self.hindsight - bottom_frame_size : ]
+        
+        return self.mlp(mlp_input, upper_tier_conditioning)
 
-        return self.mlp(mlp_input)
+
+    def reset_hidden_states(self):
+        self.hidden_states = {rnn: None for rnn in self.tiers_rnns}
+
+    def run_rnn(self, rnn, prev_samples, upper_tier_conditioning):
+        (output, new_hidden) = rnn(
+                prev_samples, upper_tier_conditioning, self.hidden_states[rnn]
+                )
+        self.hidden_states[rnn] = new_hidden.detach()
+        return output
 
     @property
     def hindsight(self):
         return self.tiers_rnns[-1].frame_size
+
+
 
 
 class TopFrameInput(torch.nn.Module):
