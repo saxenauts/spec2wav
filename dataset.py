@@ -17,10 +17,12 @@ from os.path import join
 
 class FolderDataset(Dataset):
 
-    def __init__(self, path_wav, path_spec, hindsight, q_levels, ratio_min=0, ratio_max=1):
+    def __init__(self, path_wav, path_spec, hindsight, q_levels, \
+            max_len = 32, ratio_min=0, ratio_max=1):
         super().__init__()
         self.overlap_len = overlap_len
         self.q_levels = q_levels
+        self.max_len = max_len
         file_names_spec = natsorted(
             [join(path_spec, file_name) for file_name in listdir(path_spec)]
         )
@@ -36,14 +38,28 @@ class FolderDataset(Dataset):
 
     def __getitem__(self, index):
         (seq, _) = load(self.file_names_wav[index], sr=None, mono=True)
+        gap = max_len - seq.shape[0]
+        #if not gap:
         wav_tensor = torch.cat([
-            torch.LongTensor(self.hindsight) \
-                 .fill_(0.),   #TODO numpy torch bridge
-            utils.mu_law_encoding(
-                torch.from_numpy(seq), self.q_levels
-            )
-        ])
+                torch.LongTensor(self.hindsight) \
+                    .fill_(0.),   #TODO numpy torch bridge
+                utils.mu_law_encoding(
+                    torch.from_numpy(seq), self.q_levels
+                )
+            ])
+        '''
+        else:
+            wav_tensor = torch.cat([
+                torch.LongTensor(self.hindsight) \
+                        .fill_(0.),   #TODO numpy torch bridge
+                    utils.mu_law_encoding(
+                    torch.from_numpy(seq), self.q_levels
+                    ),
+                torch.LongTensor(gap).fill_(0.)
+                ])
 
+        '''
+        
         spec_tensor = torch.from_numpy(np.load(self.file_names_spec[index], allow_pickle=False))
         #TODO add hindsight zeros to the spec_tensor
 

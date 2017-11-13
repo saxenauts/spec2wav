@@ -7,7 +7,8 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 
 ## TODO
 ### Training Block
-  - [x] Saving Model/Loading Model
+  - [x] Saving Model
+  - [ ] Loading Model
   - [ ] Train/Val loss visualisation
   - [x] Generation audio every epoch
 ### Model
@@ -19,4 +20,4 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 - [ ] CUDA
 - [ ] SalesForce QRNN
 - [ ] Handle Variable Length Input
-- [ ] Gaussian Noise?
+- [x] Gaussian Noise?

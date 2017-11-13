@@ -7,6 +7,21 @@ import nn
 from dataset import FolderDataset, DataLoader
 
 #TODO: Define Parameters
+params = {
+'int_dim' : 512,
+'hindsight': #TODO,
+'q_levels' : 256,
+'seq_len' : 512,
+'ratio_spec2wav': #TODO
+
+#training parameters
+
+'save_dir': #TODO,
+'test_frac': 0.1,
+'val_frac': 0.1,
+'epochs': 50
+
+}
 
 #TODO : Data Loading
 def make_data_loader(params, path_wav, path_spec):
@@ -48,7 +63,7 @@ def train(model, data, optimizer, loss_func):
 
         batch_inputs = data_batch[0]
         batch_targets = data_batch[2]
-        batch_spectro = data_batch[3]  #TODO: Figure out use for reset
+        batch_spectro = data_batch[3]  #TODO:
 
         batch_output = model(batch_inputs, batch_spectro)
 
@@ -79,13 +94,12 @@ def save_checkpoints(model, optim, epoch, save_dir):
 def main():
 
     model = SampleRNN(
-            input_dim = , #TODO
+            input_dim = , #top_frame_int_dimensions
             q_levels = params['q_levels'],
-            ratio_spec2wav = params['ratio_spec2wav'],
-            output_dimensions = params['output_dimensions']
+            ratio_spec2wav = params['ratio_spec2wav']
     )
+    #TODO: Grad clipping, optim betas
     optimizer = gradient_clipping(torch.optim.Adam(model.parameters()))
-    #scheduler = ReduceLROnPlateau(optimizer, 'min') TODO: What learning rate schedule?
 
     data_loader  = make_data_loader(params, path_wav, path_spec)
     generator = Generator(params)

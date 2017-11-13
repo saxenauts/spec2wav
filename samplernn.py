@@ -14,8 +14,7 @@ class SampleRNN(torch.nn.Module):
 
     '''
 
-    def __init__(self, int_dim, q_levels, ratio_spec2wav, \
-                    output_dimensions):
+    def __init__(self, int_dim, q_levels, ratio_spec2wav):
         super().__init__()
 
     self.int_dim = int_dim
@@ -123,6 +122,9 @@ class TopFrameInput(torch.nn.Module):
         #TODO: cuda
         batch_size, _ = audio.size()
         self.qrnn_hidden = [torch.zeros(1, batch_size, self.spec_input) for i in range(4)]
+
+        noise = torch.randn(spectrogram.shape)
+        spectrogram += noise
 
         spectro_qrnn, hidden[0] = self.qrnn1(spectrogram, hidden[0])
         spectro_qrnn_b, hidden[1] = self.qrnn1_b(utils.reverse(spectro_qrnn_1_b, 2), \
