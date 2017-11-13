@@ -11,7 +11,7 @@ Will modify the architecture to make it extremely flexible for multiple purposes
   - [ ] Train/Val loss visualisation
   - [x] Generation audio every epoch
 ### Model
-  - [ ] Model Input Output Tuning
+  - [x] Model Input Output Tuning
   - [x] Weight/Hidden State Initialization
   - [ ] Weight Normalization
   - [x] Generator File/ Module
@@ -19,3 +19,4 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 - [ ] CUDA
 - [ ] SalesForce QRNN
 - [ ] Handle Variable Length Input
+- [ ] Gaussian Noise?

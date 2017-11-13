@@ -38,8 +38,8 @@ class FolderDataset(Dataset):
         (seq, _) = load(self.file_names_wav[index], sr=None, mono=True)
         wav_tensor = torch.cat([
             torch.LongTensor(self.hindsight) \
-                 .fill_(utils.q_zero(self.q_levels)),   #TODO linear_quantize change
-            utils.linear_quantize(
+                 .fill_(0.),   #TODO numpy torch bridge
+            utils.mu_law_encoding(
                 torch.from_numpy(seq), self.q_levels
             )
         ])
@@ -72,7 +72,7 @@ class DataLoader(DataLoaderBase):
         for batch_wav, batch_spec in super().__iter__():
             (batch_size, n_samples) = batch_wav.size()
 
-            reset = True #TODO: Functionality of reset?
+            reset = True
 
             for seq_begin in range(self.hindsight, n_samples, self.seq_len):
                 from_index = seq_begin - self.hindsight

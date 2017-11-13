@@ -10,15 +10,15 @@ class SampleRNN(torch.nn.Module):
         Builds the complete SampleRNN model on an abstraction. 3 Tier
         Input parameters: top_frame_size,
                           mid_frame_size,
-                          top_frame_input_dimensions
+                          top_frame_int_dimensions
 
     '''
 
-    def __init__(self, input_dim, q_levels, ratio_spec2wav, \
+    def __init__(self, int_dim, q_levels, ratio_spec2wav, \
                     output_dimensions):
         super().__init__()
 
-    self.input_dim = input_dim
+    self.int_dim = int_dim
     self.q_levels = q_levels
     self.top_frame_size = 16
 
@@ -26,15 +26,15 @@ class SampleRNN(torch.nn.Module):
 
     self.tiers_rnns = torch.nn.ModuleList([
         TierRNN(
-            4, 2, self.input_dim
+            4, 2, self.int_dim
         ),                                      #TierRNN listed according to tier index
         TierRNN(
-            16, 2, self.input_dim
+            16, 2, self.int_dim
         )
     ])
 
     self.reset_hidden_states()
-    self.mlp = MLP(4, self.input_dim, self.q_levels)
+    self.mlp = MLP(4, self.int_dim, self.q_levels)
 
     def forward(self, audio_clip, spectrogram_clip, reset):
         '''
@@ -85,16 +85,17 @@ class TopFrameInput(torch.nn.Module):
 
     '''
 
-    def __init__(self, ratio_top_input):
+    def __init__(self, ratio_top_input, spec_dim):
         super().__init__()
 
         self.ratio = ratio_top_input
-        spec_input = #TODO
+        self.spec_input = #TODO
+        self.spec_hidden = spec_input
 
-        self.qrnn1 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
-        self.qrnn1_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
-        self.qrnn2 = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
-        self.qrnn2_b = QRNN(spec_input, spec_hidden, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn1 = QRNN(spec_input, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn1_b = QRNN(spec_input, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn2 = QRNN(spec_input, num_layers = 1, window = 2, dropout = 0)
+        self.qrnn2_b = QRNN(spec_input, num_layers = 1, window = 2, dropout = 0)
 
         init.xavier_uniform(self.qrnn1.weight)
         init.xavier_uniform(self.qrnn1_b.weight)
@@ -102,16 +103,16 @@ class TopFrameInput(torch.nn.Module):
         init.xavier_uniform(self.qrnn2_b.weight)
 
         self.conv1d = torch.nn.Conv1d(
-                        q_levels,           #TODO: hidden, input dims?
-                        q_levels,
+                        spec_input,
+                        int_dim,
                         kernel_size = 1,
                         stride = 1)
         nn.lecun_uniform(self.conv1d.weight)
         init.constant(self.conv1d.bias, 0)
 
         self.conv2d = torch.nn.Conv1d(
-                        q_levels,           #TODO: hidden, input dims?
-                        q_levels,
+                        1,       #TODO: Find a better way
+                        int_dim,
                         kernel_size = 1,
                         stride = 1)
         nn.lecun_uniform(self.conv2d.weight)
@@ -120,8 +121,8 @@ class TopFrameInput(torch.nn.Module):
     def forward(self, audio, spectrogram):
 
         #TODO: cuda
-        #TODO: Hidden
-        self.qrnn_hidden = [torch.zeros(, dim) for i in range(4)]
+        batch_size, _ = audio.size()
+        self.qrnn_hidden = [torch.zeros(1, batch_size, self.spec_input) for i in range(4)]
 
         spectro_qrnn, hidden[0] = self.qrnn1(spectrogram, hidden[0])
         spectro_qrnn_b, hidden[1] = self.qrnn1_b(utils.reverse(spectro_qrnn_1_b, 2), \
@@ -146,7 +147,7 @@ class TierRNN(torch.nn.Module):
 
     Input: prev rnn cell's hidden state, input samples, upsampled conditioning
     '''
-    def __init__(self, frame_size, input_dim):
+    def __init__(self, frame_size, int_dim, upsample_ratio):
         super.__init__()
 
         self.frame_size = frame_size
@@ -154,7 +155,7 @@ class TierRNN(torch.nn.Module):
 
         self.clock_input = torch.nn.Conv1d(
                     in_channels = frame_size,
-                    out_channels = input_dim,
+                    out_channels = int_dim,
                     kernel_size = 1
         )
 
@@ -162,8 +163,8 @@ class TierRNN(torch.nn.Module):
         init.constant(self.clock_input.bias, 0)
 
         self.rnn = torch.nn.GRU(
-            input_size = input_dim,
-            hidden = input_dim,
+            input_size = int_dim,
+            hidden = int_dim,
             num_layers = n_rnn,
             batch_first = True       #Input, Output provided as (Batch x Sequence x Feature)
         )
@@ -182,23 +183,23 @@ class TierRNN(torch.nn.Module):
             init.constant(getattr(self.rnn, 'bias_hh_l{}'.format(i)), 0)
 
         self.tier_output_upsample = utils.LearnedUpsampling1d(
-                in_channels = input_dim,
-                out_channels = input_dim,
-                kernel_size = frame_size
+                in_channels = int_dim,
+                out_channels = int_dim,
+                kernel_size = upsample_ratio
         )
         init.uniform(
-            self.tier_output_upsample.conv_t.weight, -np.sqrt(6 / dim), np.sqrt(6 / dim)
+            self.tier_output_upsample.conv_t.weight, -np.sqrt(6 / int_dim), np.sqrt(6 / int_dim)
         )
         init.constant(self.tier_output_upsample.bias, 0)
 
     def forward(self, prev_samples, upper_tier_conditioning, hidden):
         '''
         Assumed dimensions:
-                prev_samples: input_dim x seq_len
-                upper_tier_conditioning: input_dim x seq_len
-                hidden: input_dim x seq_len
+                prev_samples: batch x seq_len_reduced x frame_size
+                upper_tier_conditioning: int_dim x seq_len
+                hidden: int_dim x seq_len
         '''
-        tier_input = clock_input(
+        tier_input = self.clock_input(
                     prev_samples.permute(0, 2, 1)
                     ).permute(0, 2, 1)
 
@@ -208,8 +209,7 @@ class TierRNN(torch.nn.Module):
         reset = hidden is None
 
         if hidden is None:
-            hidden = zeros(, dim)
-            #TODO: dimensions
+            hidden = zeros(1, int_dim)
 
         output, hidden = self.rnn(tier_input, hidden)
 
@@ -221,7 +221,7 @@ class TierRNN(torch.nn.Module):
 
 class MLP(torch.nn.Module):
 
-    def __init__(self, frame_size, input_dim, q_levels):
+    def __init__(self, frame_size, int_dim, q_levels):
         super().__init__()
 
         self.q_levels = q_levels
@@ -233,22 +233,22 @@ class MLP(torch.nn.Module):
 
         self.input = torch.nn.Conv1d(
             in_channels = q_levels,
-            out_channels = input_dim,
+            out_channels = int_dim,
             kernel_size = frame_size,
             bias = False
         )
         init.kaiming_uniform(self.input.weight)
 
         self.hidden = torch.nn.Conv1d(
-            in_channels = input_dim,
-            out_channels = input_dim,
+            in_channels = int_dim,
+            out_channels = int_dim,
             kernel_size = 1
         )
         init.kaiming_uniform(self.hidden.weight)
         init.constant(self.hidden.bias, 0)
 
         self.output = torch.nn.Conv1d(
-            in_channels = input_dim,
+            in_channels = int_dim,
             out_channels = q_levels,
             kernel_size = 1
         )
@@ -256,15 +256,14 @@ class MLP(torch.nn.Module):
         init.constant(self.output.bias, 0)
 
     def forward(self, prev_samples, upper_tier_conditioning):
-
-        #TODO: Batch size
-        #TODO: What is prev_samples? dim?
-
-        #TODO
         '''
-        WHY SO MANY PERMUTES? WHAT IS BEING FED IN, AND WHAT IS COMING OUT?
+        Input: prev_samples : batch_size x sequence_length
+               upper_tier_conditioning: batch_size x sequence_length x dim
+        Output: log softmax probabilities over q_level values for each sample
+
         '''
-        prev_samples = self.embedding(prev_samples).\
+        (batch_size, _) = prev_samples.size()
+        prev_samples = self.embedding(prev_samples.contiguous().view(-1)).\
                         view(batch_size, -1, self.q_levels)
 
         prev_samples = prev_samples.permute(0, 2, 1)
@@ -275,8 +274,6 @@ class MLP(torch.nn.Module):
         x = self.output(x).permute(0, 2, 1).contiguous()
 
         # Output  batch_size x sequence_length x q_levels
-
-        #TODO: Check for a different return based on personal code
         return F.log_softmax(x.view(-1, self.q_levels))\
                             .view(batch_size, -1, self.q_levels)
 
@@ -290,6 +287,7 @@ class Generator():
         -Takes in an spectrogram
         -Generates audio of Arbitrary Length
         '''
+        #TODO: Volatile
         model.reset_hidden_states()
 
         bottom_frame_size = model.tiers_rnns[0].frame_size
