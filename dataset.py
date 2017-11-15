@@ -12,7 +12,9 @@ from tqdm import *
 
 from os import listdir
 from os.path import join
-
+import argparse
+import numpy as np
+import os
 
 
 class FolderDataset(Dataset):
@@ -59,7 +61,7 @@ class FolderDataset(Dataset):
                 ])
 
         '''
-        
+
         spec_tensor = torch.from_numpy(np.load(self.file_names_spec[index], allow_pickle=False))
         #TODO add hindsight zeros to the spec_tensor
 
@@ -111,10 +113,10 @@ def main(wav_path, spec_path):
 
     for file_name in tqdm(file_names):
         wav = spectro.load_wav(join(wav_path, file_name))
-        mel_spectrogram = spectro.mel_spectrogram(wav).astype(np.float32)
+        mel_spectrogram = spectro.melspectrogram(wav).astype(np.float32)
 
         #TODO: Saving in time major format?
-        np.save(os.path.join(spec_path, file_name), mel_spectrogram.T, allow_pickle=False)
+        np.save(os.path.join(spec_path, file_name), mel_spectrogram, allow_pickle=False)
     print ("Done")
 
 if __name__ == '__main__':
@@ -122,4 +124,4 @@ if __name__ == '__main__':
     parser.add_argument('--data_path')
     parser.add_argument('--spectro_save_path')
     args = parser.parse_args()
-    main(args.data_path, spectro_save_path)
+    main(args.data_path, args.spectro_save_path)
