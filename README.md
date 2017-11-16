@@ -9,6 +9,7 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 ### Training Block
   - [x] Saving Model
   - [ ] Loading Model
+  - [ ] Evaluation?
   - [ ] Train/Val loss visualisation
   - [x] Generation audio every epoch
 ### Model
@@ -17,7 +18,7 @@ Will modify the architecture to make it extremely flexible for multiple purposes
   - [ ] Weight Normalization
   - [x] Generator File/ Module
 - [ ] HyperParameter Tuning
-- [ ] CUDA
+- [x] CUDA
 - [ ] SalesForce QRNN
 - [ ] Handle Variable Length Input
 - [x] Gaussian Noise?

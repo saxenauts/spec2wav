@@ -42,12 +42,16 @@ class SampleRNN(torch.nn.Module):
         if reset: #TODO: Fix reset
             self.reset_hidden_states()
 
+        batch_size, _, _ = audio_clip.size()
+
+        #TODO: Get the input in range (-2,2)
         conditioning = self.top_frame_input(audio_clip, spectrogram_clip)
         input_seq = audio_clip
         for rnn in reversed(self.tiers_rnns):
             from_index = top_frame_size - rnn.frame_size
             to_index = -rnn.frame_size + 1
             prev_samples = input_seq[:, from_index:to_index]
+            prev_samples = prev_samples.contiguous().view(batch_size, -1, rnn.frame_size)
             conditioning = self.run_rnn(rnn, prev_samples, conditioning)
 
         bottom_frame_size = self.tiers_rnns[0].frame_size
@@ -201,6 +205,7 @@ class TierRNN(torch.nn.Module):
                 upper_tier_conditioning: int_dim x seq_len
                 hidden: int_dim x seq_len
         '''
+        (batch_size, _, _)  = prev_samples.size()
         tier_input = self.clock_input(
                     prev_samples.permute(0, 2, 1)
                     ).permute(0, 2, 1)
@@ -211,7 +216,7 @@ class TierRNN(torch.nn.Module):
         reset = hidden is None
 
         if hidden is None:
-            hidden = zeros(1, int_dim)
+            hidden = torch.zeros(1, batch_size, int_dim)
 
         output, hidden = self.rnn(tier_input, hidden)
 
@@ -290,6 +295,7 @@ class Generator():
         -Generates audio of Arbitrary Length
         '''
         #TODO: Volatile
+        #TODO: CUDA
         model.reset_hidden_states()
 
         bottom_frame_size = model.tiers_rnns[0].frame_size

@@ -1,4 +1,5 @@
 import torch
+from torch.autograd import Variable
 from samplernn import SampleRNN, Generator
 import nn
 
@@ -48,7 +49,7 @@ def spec2wav(generator, model, spectrogram, save_path):
     librosa.output.write_wav(save_path, wav, 16000)
 
 #TODO: Saved model Loading
-
+#TODO: Global CUDA flag
 
 
 
@@ -57,13 +58,20 @@ def loss_function(batch_output, batch_inputs):
     return nn.sequence_nll_loss_bits(batch_output, batch_output)
 
 
-def train(model, data, optimizer, loss_func):
+def train(model, dataset, optimizer, loss_func):
     for data_batch in dataset:
         optimizer.zero_grad()
 
-        batch_inputs = data_batch[0]
-        batch_targets = data_batch[2]
-        batch_spectro = data_batch[3]  #TODO:
+        def Variable_wrap(input):
+            if torch.is_tensor(input):
+                input = Variable(input)
+                if CUDA:
+                    input = input.cuda()
+                return input
+
+        batch_inputs = list(map(Variable_wrap, data_batch[0]))
+        batch_targets = list(map(Variable_wrap, data_batch[2]))
+        batch_spectro = list(map(Variable_wrap, data_batch[3]))
 
         batch_output = model(batch_inputs, batch_spectro)
 
@@ -98,6 +106,9 @@ def main():
             q_levels = params['q_levels'],
             ratio_spec2wav = params['ratio_spec2wav']
     )
+    if CUDA:
+        model = model.cuda()
+        
     #TODO: Grad clipping, optim betas
     optimizer = gradient_clipping(torch.optim.Adam(model.parameters()))
 
