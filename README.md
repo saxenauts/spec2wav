@@ -10,7 +10,7 @@ Will modify the architecture to make it extremely flexible for multiple purposes
   - [x] Saving Model
   - [ ] Loading Model
   - [ ] Evaluation?
-  - [ ] Train/Val loss visualisation
+  - [x] Train/Val loss visualisation
   - [x] Generation audio every epoch
 ### Model
   - [x] Model Input Output Tuning

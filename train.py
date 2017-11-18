@@ -1,11 +1,12 @@
 import torch
 from torch.autograd import Variable
-from samplernn import SampleRNN, Generator
-import nn
 
+import matplotlib.pyplot as plt
 
 #TODO : Imports
 from dataset import FolderDataset, DataLoader
+from samplernn import SampleRNN, Generator
+import nn
 
 #TODO: Define Parameters
 params = {
@@ -23,6 +24,13 @@ params = {
 'epochs': 50
 
 }
+
+def Variable_wrap(input):
+     if torch.is_tensor(input):
+         input = Variable(input)
+         if CUDA:
+             input = input.cuda()
+         return input
 
 #TODO : Data Loading
 def make_data_loader(params, path_wav, path_spec):
@@ -52,22 +60,18 @@ def spec2wav(generator, model, spectrogram, save_path):
 #TODO: Global CUDA flag
 
 
-
 def loss_function(batch_output, batch_inputs):
     #TODO Does this system work?
     return nn.sequence_nll_loss_bits(batch_output, batch_output)
 
 
-def train(model, dataset, optimizer, loss_func):
-    for data_batch in dataset:
+def train(model, dataset, optimizer, loss_func, epoch):
+    loss_plot = []
+    total_loss = 0
+    for i, data_batch in enumerate(dataset):
         optimizer.zero_grad()
 
-        def Variable_wrap(input):
-            if torch.is_tensor(input):
-                input = Variable(input)
-                if CUDA:
-                    input = input.cuda()
-                return input
+        batch_size = data_batch.shape[0]
 
         batch_inputs = list(map(Variable_wrap, data_batch[0]))
         batch_targets = list(map(Variable_wrap, data_batch[2]))
@@ -80,9 +84,54 @@ def train(model, dataset, optimizer, loss_func):
 
         optimizer.step()
 
+        total_loss += loss/batch_size
+        if i%100:
+            loss_plot.append(total_loss/100)
+            total_loss = 0
+
+    return loss_plot
+
+
+def evaluate(model, dataset, loss_func, epoch):
+    model.eval()
+
+    loss_plot = []
+    total_loss = 0
+    for (i, data) in enumerate(dataset):
+
+        batch_size = data.shape[0]
+
+        batch_inputs = list(map(Variable_wrap, data_batch[0]))
+        batch_targets = list(map(Variable_wrap, data_batch[2]))
+        batch_spectro = list(map(Variable_wrap, data_batch[3]))
+
+        batch_output = model(batch_inputs, batch_spectro)
+        loss = loss_func(batch_output, batch_targets)
+        total_loss += loss/batch_size
+        if i%100 == 0:
+            loss_plot.append(total_loss/100)
+            total_loss = 0
+
+    model.train()
+    return loss_plot
+
+
 def run_training(model, data, optimizer, loss_function, epochs, generator):
+    t_loss = []
+    e_loss = []
     for epoch in range(epochs):
-        train(model, data(0, val_split), optimizer, loss_function)
+        train_loss = train(model, data(0, val_split), optimizer, loss_function, epoch)
+        eval_loss = evaluate(model, data(val_split, 1), loss_function, epoch)
+
+        t_plot = np.asarray(t_loss.append(train_loss))
+        e_plot = np.asarray(e_loss.append(eval_loss))
+        t_plot = np.reshape(-1, t_plot.shape[-1])
+        e_plot = np.reshape(-1, e_plot.shape[-1])
+
+        iters = np.arange(0, t_plot.shape[0]*100, 100)
+        plt.plot(t_plot, iters, 'r', e_plot, 'b', linewidth=2.0)
+        plt.save_fig(params['plot_save_path'])
+        plt.clf()
 
         if epoch%10 == 0:
             save_checkpoints(model, optim, epoch, params['save_dir'])
@@ -108,7 +157,7 @@ def main():
     )
     if CUDA:
         model = model.cuda()
-        
+
     #TODO: Grad clipping, optim betas
     optimizer = gradient_clipping(torch.optim.Adam(model.parameters()))
 
