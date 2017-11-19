@@ -8,8 +8,8 @@ Will modify the architecture to make it extremely flexible for multiple purposes
 ## TODO
 ### Training Block
   - [x] Saving Model
-  - [ ] Loading Model
-  - [ ] Evaluation?
+  - [x] Loading Model
+  - [x] Evaluation?
   - [x] Train/Val loss visualisation
   - [x] Generation audio every epoch
 ### Model
