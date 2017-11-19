@@ -21,8 +21,8 @@ params = {
 'save_dir': #TODO,
 'test_frac': 0.1,
 'val_frac': 0.1,
-'epochs': 50
-
+'epochs': 50,
+'resume': None
 }
 
 def Variable_wrap(input):
@@ -56,12 +56,27 @@ def spec2wav(generator, model, spectrogram, save_path):
     wav = utils.mu_law_decoding(audio_samples)
     librosa.output.write_wav(save_path, wav, 16000)
 
+
+def save_checkpoints(model, optim, epoch, save_dir):
+    save_path = os.path.join(save_dir, 'spec2wav_epoch_{}.ckpt'.format(epoch))
+    torch.save({'epoch': epoch,
+                'state_dict': model.state_dict(),
+                'optimizer_state': optim.state_dict()},
+                 save_path)
+
+def load_last_checkpoint(checkpoint_path, model):
+    checkpoint = torch.load(checkpoint_path)
+    epoch = checkpoint['epoch']
+    optimizer.load_state_dict(checkpoint['optimizer_state'])
+    model.load_state_dict(checkpoint['state_dict'])
+    return epoch, model, optimizer
+
 #TODO: Saved model Loading
 #TODO: Global CUDA flag
 
 
 def loss_function(batch_output, batch_inputs):
-    #TODO Does this system work?
+    #TODO How Does this system work?
     return nn.sequence_nll_loss_bits(batch_output, batch_output)
 
 
@@ -139,15 +154,6 @@ def run_training(model, data, optimizer, loss_function, epochs, generator):
             spec2wav(generator, model, spectrogram, save_path)
 
 
-
-def save_checkpoints(model, optim, epoch, save_dir):
-    save_path = os.path.join(save_dir, 'spec2wav_epoch_{}.ckpt'.format(epoch))
-    torch.save({'epoch': epoch,
-                'state_dict': model.state_dict(),
-                'optimizer': optim},
-                 save_path)
-
-
 def main():
 
     model = SampleRNN(
@@ -166,5 +172,7 @@ def main():
 
     test_split = 1 - params['test_frac']
     val_split = test_split - params['val_frac']
+    if params['resume']:
+        epoch, model, optimizer = load_last_checkpoint(params['resume'])
     run_training(model, data_loader, optimizer, loss_function,
                     params['epochs'], generator)
